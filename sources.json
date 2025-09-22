@@ -1,0 +1,61 @@
+{
+  "sources": [
+    {
+      "name": "CISA Alerts",
+      "url": "https://www.cisa.gov/uscert/ncas/alerts.xml",
+      "type": "rss",
+      "category": "government",
+      "active": true
+    },
+    {
+      "name": "Krebs on Security",
+      "url": "https://krebsonsecurity.com/feed/",
+      "type": "rss",
+      "category": "blog",
+      "active": true
+    },
+    {
+      "name": "The Hacker News",
+      "url": "https://feeds.feedburner.com/TheHackersNews",
+      "type": "rss",
+      "category": "news",
+      "active": true
+    },
+    {
+      "name": "Schneier on Security",
+      "url": "https://www.schneier.com/blog/atom.xml",
+      "type": "rss",
+      "category": "blog",
+      "active": true
+    },
+    {
+      "name": "Dark Reading",
+      "url": "https://www.darkreading.com/rss.xml",
+      "type": "rss",
+      "category": "news",
+      "active": true
+    },
+    {
+      "name": "US-CERT",
+      "url": "https://us-cert.cisa.gov/ncas/all.xml",
+      "type": "rss",
+      "category": "government",
+      "active": true
+    },
+    {
+      "name": "Bellingcat",
+      "url": "https://www.bellingcat.com/feed/",
+      "type": "rss",
+      "category": "geopolitical",
+      "active": true
+    },
+    {
+      "name": "Council on Foreign Relations",
+      "url": "https://www.cfr.org/rss/cyber",
+      "type": "rss",
+      "category": "geopolitical",
+      "active": true
+    }
+  ],
+  "blacklist": []
+}

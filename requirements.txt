@@ -1,0 +1,32 @@
+# Core dependencies
+requests==2.31.0
+beautifulsoup4==4.12.3
+lxml==5.1.0
+feedparser==6.0.11
+
+# Data processing
+pandas==2.2.0
+python-dateutil==2.8.2
+
+# Email functionality
+python-dotenv==1.0.1
+secure-smtplib==0.1.1
+
+# Scheduling
+schedule==1.2.0
+
+# AI/NLP for summarization
+openai==1.12.0
+
+# Database
+sqlalchemy==2.0.25
+
+# Web framework (for future API)
+fastapi==0.109.0
+uvicorn==0.27.0
+
+# Testing
+pytest==8.0.0
+
+# Deployment
+gunicorn==21.2.0
