@@ -3,15 +3,7 @@ version: '3.8'
 services:
   security-monitor:
     build: .
-    command:
-      - gunicorn
-      - --workers
-      - "3"
-      - --bind
-      - "0.0.0.0:5000"
-      - --access-logfile
-      - "-"
-      - dashboard:app
+
     ports:
       - "80:5000"
     volumes:
