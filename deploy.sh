@@ -27,7 +27,7 @@ if [ -d "/opt/security-monitor" ]; then
 else
     echo "📥 Cloning repository..."
     cd /opt
-    git clone https://github.com/YOUR_USERNAME/security-monitor.git
+    git clone https://github.com/charoAI/security-monitor.git
     cd security-monitor
 fi
 
@@ -56,7 +56,7 @@ echo "✅ Deployment complete!"
 echo ""
 docker-compose ps
 echo ""
-echo "📌 Access your dashboard at: http://YOUR_DROPLET_IP"
+echo "📌 Access your dashboard at: http://$(curl -s ifconfig.me)"
 echo "📝 View logs: docker-compose logs -f"
 echo "🔄 Restart: docker-compose restart"
 echo "🛑 Stop: docker-compose down"
