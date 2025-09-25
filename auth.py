@@ -120,7 +120,8 @@ def login_required(f):
     """Decorator to require login for routes"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'user' not in session:
+        # Check for either 'user' or 'username' in session (supporting both auth systems)
+        if 'user' not in session and 'username' not in session:
             if request.is_json:
                 return jsonify({'error': 'Authentication required'}), 401
             return redirect(url_for('login', next=request.url))
@@ -131,7 +132,8 @@ def admin_required(f):
     """Decorator to require admin privileges"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'user' not in session:
+        # Check for either 'user' or 'username' in session (supporting both auth systems)
+        if 'user' not in session and 'username' not in session:
             if request.is_json:
                 return jsonify({'error': 'Authentication required'}), 401
             return redirect(url_for('login'))
