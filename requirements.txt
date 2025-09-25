@@ -13,6 +13,7 @@ schedule==1.2.0
 
 # Data processing
 python-dateutil==2.8.2
+pytz==2024.1
 
 # LLM Integration (optional - install only what you need)
 # openai==1.12.0  # For OpenAI GPT (uncomment if using)
