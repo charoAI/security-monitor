@@ -287,30 +287,40 @@ def serve_static(filename):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        try:
+            print("Login attempt started for user:", request.form.get('username'))
+            username = request.form.get('username')
+            password = request.form.get('password')
 
-        # Use UserManager for authentication
-        user_info = user_manager.authenticate_user(username, password)
+            # Use UserManager for authentication
+            user_info = user_manager.authenticate_user(username, password)
+            print("Authentication result:", user_info)
 
-        if user_info:
-            session['user_id'] = user_info['id']
-            session['username'] = user_info['username']
-            session['user'] = user_info['username']  # For compatibility
-            session['is_admin'] = user_info['is_admin']
-            session['email'] = user_info['email']
-            session.permanent = request.form.get('remember') == 'on'
+            if user_info:
+                print("Login successful, setting session.")
+                session['user_id'] = user_info['id']
+                session['username'] = user_info['username']
+                session['user'] = user_info['username']  # For compatibility
+                session['is_admin'] = user_info['is_admin']
+                session['email'] = user_info['email']
+                session.permanent = request.form.get('remember') == 'on'
 
-            # Log activity
-            user_manager.log_activity(
-                user_info['id'], 'login',
-                ip_address=request.remote_addr,
-                user_agent=request.user_agent.string
-            )
-
-            return redirect(url_for('index'))
-        else:
-            return render_template('login.html', error='Invalid username or password')
+                # Log activity
+                user_manager.log_activity(
+                    user_info['id'], 'login',
+                    ip_address=request.remote_addr,
+                    user_agent=request.user_agent.string
+                )
+                print("Redirecting to index.")
+                return redirect(url_for('index'))
+            else:
+                print("Login failed: Invalid credentials.")
+                return render_template('login.html', error='Invalid username or password')
+        except Exception as e:
+            print(f"An exception occurred during login: {e}")
+            import traceback
+            traceback.print_exc()
+            return render_template('login.html', error='An internal error occurred. Please check the logs.')
 
     return render_template('login.html')
 
