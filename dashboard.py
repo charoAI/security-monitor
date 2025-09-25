@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 import feedparser
 from datetime import datetime
 from bs4 import BeautifulSoup
@@ -6,6 +6,7 @@ import re
 import json
 from pathlib import Path
 import socket
+import os
 
 # Set timeout for all network operations
 socket.setdefaulttimeout(5)
@@ -26,6 +27,15 @@ except ImportError:
         print("LLM synthesizer not available. Install google-generativeai for enhanced narratives.")
 
 app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', os.urandom(24).hex())
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') == 'production'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
+
+# Initialize authentication
+from auth import AuthManager, login_required, admin_required
+auth_manager = AuthManager()
 
 # Load sources from file
 SOURCES_FILE = Path('sources_config.json')
@@ -247,7 +257,31 @@ def fetch_articles(limit=30):  # Increased limit to 30 articles per source
     print(f"Total articles collected: {len(all_articles)}")
     return all_articles
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        success, result = auth_manager.authenticate(username, password)
+
+        if success:
+            session['user'] = username
+            session['is_admin'] = result.get('is_admin', False)
+            session.permanent = request.form.get('remember') == 'on'
+            return redirect(url_for('index'))
+        else:
+            return render_template('login.html', error=result)
+
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
 @app.route('/')
+@login_required
 def index():
     return render_template('dashboard.html')
 
@@ -641,4 +675,7 @@ if __name__ == '__main__':
     from report_scheduler import get_scheduler
     scheduler = get_scheduler()
     scheduler.start()
-    app.run(debug=True, port=5000)
+
+    import os
+    debug_mode = os.getenv('FLASK_ENV', 'development') == 'development'
+    app.run(debug=debug_mode, host='0.0.0.0', port=5000)

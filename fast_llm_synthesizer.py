@@ -3,19 +3,46 @@ Fast, accurate LLM synthesis with REAL article content
 """
 import os
 from typing import List, Dict
-import google.generativeai as genai
 from article_extractor import ArticleExtractor
 import concurrent.futures
 
+# Dynamic LLM provider loading
+llm_provider = os.getenv('LLM_PROVIDER', 'gemini').lower()
+
+if llm_provider == 'ollama':
+    from ollama_synthesizer import OllamaSynthesizer
+else:
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        genai = None
+
 class FastLLMSynthesizer:
     def __init__(self):
-        self.gemini_key = os.getenv('GEMINI_API_KEY')
-        if self.gemini_key:
-            genai.configure(api_key=self.gemini_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
-            self.enabled = True
-        else:
-            self.enabled = False
+        self.provider = llm_provider
+        self.enabled = False
+
+        if self.provider == 'ollama':
+            # Use Ollama (free, local)
+            try:
+                self.model = OllamaSynthesizer()
+                self.enabled = True
+                print("Using Ollama for LLM synthesis (local, free)")
+            except Exception as e:
+                print(f"Ollama initialization failed: {e}")
+                print(OllamaSynthesizer.install_instructions())
+
+        elif genai:
+            # Use Google Gemini
+            self.gemini_key = os.getenv('GEMINI_API_KEY')
+            if self.gemini_key:
+                genai.configure(api_key=self.gemini_key)
+                self.model = genai.GenerativeModel('gemini-1.5-flash')
+                self.enabled = True
+                print("Using Google Gemini for LLM synthesis")
+
+        if not self.enabled:
+            print("No LLM provider configured. Set LLM_PROVIDER=ollama for free local LLM.")
 
     def synthesize_country_report(self, country: str, articles: List[Dict], custom_prompt: str = None) -> Dict:
         """
