@@ -15,6 +15,6 @@ schedule==1.2.0
 python-dateutil==2.8.2
 pytz==2024.1
 
-# LLM Integration (optional - install only what you need)
-# openai==1.12.0  # For OpenAI GPT (uncomment if using)
-# google-generativeai==0.3.2  # For Google Gemini (uncomment if using)
+# LLM Integration
+openai==1.12.0  # For OpenAI GPT
+google-generativeai==0.3.2  # For Google Gemini
