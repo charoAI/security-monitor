@@ -1,6 +1,6 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash
 import feedparser
-from datetime import datetime
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 import re
 import json
@@ -33,9 +33,11 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
 
-# Initialize authentication
+# Initialize authentication and user management
 from auth import AuthManager, login_required, admin_required
+from user_management import UserManager
 auth_manager = AuthManager()
+user_manager = UserManager()
 
 # Load sources from file
 SOURCES_FILE = Path('sources_config.json')
@@ -263,15 +265,27 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
 
-        success, result = auth_manager.authenticate(username, password)
+        # Use UserManager for authentication
+        user_info = user_manager.authenticate_user(username, password)
 
-        if success:
-            session['user'] = username
-            session['is_admin'] = result.get('is_admin', False)
+        if user_info:
+            session['user_id'] = user_info['id']
+            session['username'] = user_info['username']
+            session['user'] = user_info['username']  # For compatibility
+            session['is_admin'] = user_info['is_admin']
+            session['email'] = user_info['email']
             session.permanent = request.form.get('remember') == 'on'
+
+            # Log activity
+            user_manager.log_activity(
+                user_info['id'], 'login',
+                ip_address=request.remote_addr,
+                user_agent=request.user_agent.string
+            )
+
             return redirect(url_for('index'))
         else:
-            return render_template('login.html', error=result)
+            return render_template('login.html', error='Invalid username or password')
 
     return render_template('login.html')
 
@@ -669,6 +683,202 @@ def run_scheduled_report(report_id):
         return jsonify({'error': str(e)}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# Registration routes
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        full_name = request.form.get('full_name')
+        organization = request.form.get('organization')
+        reason = request.form.get('reason')
+
+        result = user_manager.request_registration(
+            email=email,
+            full_name=full_name,
+            organization=organization,
+            reason=reason
+        )
+
+        if result['success']:
+            flash('Your registration request has been submitted. An admin will review it soon.', 'success')
+        else:
+            flash(result['message'], 'error')
+
+        return redirect(url_for('register'))
+
+    return render_template('register.html')
+
+# Admin panel routes
+@app.route('/admin')
+@admin_required
+def admin_panel():
+    # Get pending requests
+    pending_requests = user_manager.get_pending_requests()
+
+    # Get all users
+    users = user_manager.get_all_users()
+
+    # Calculate statistics
+    stats = calculate_admin_stats()
+
+    # Get recent activity
+    recent_activity = get_recent_activity()
+
+    # Prepare chart data
+    chart_labels, reports_data, api_data = get_usage_chart_data()
+
+    return render_template('admin.html',
+        pending_requests=pending_requests,
+        users=users,
+        stats=stats,
+        recent_activity=recent_activity,
+        chart_labels=chart_labels,
+        reports_data=reports_data,
+        api_data=api_data
+    )
+
+@app.route('/admin/approve/<int:request_id>', methods=['POST'])
+@admin_required
+def approve_registration(request_id):
+    result = user_manager.approve_registration(
+        request_id=request_id,
+        admin_username=session.get('username', 'admin')
+    )
+    return jsonify(result)
+
+@app.route('/admin/reject/<int:request_id>', methods=['POST'])
+@admin_required
+def reject_registration(request_id):
+    data = request.get_json() or {}
+    reason = data.get('reason')
+
+    result = user_manager.reject_registration(
+        request_id=request_id,
+        admin_username=session.get('username', 'admin'),
+        reason=reason
+    )
+    return jsonify(result)
+
+@app.route('/admin/toggle-user/<int:user_id>', methods=['POST'])
+@admin_required
+def toggle_user_status(user_id):
+    # Implementation for toggling user active status
+    conn = user_manager.get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT is_active FROM users WHERE id = ?', (user_id,))
+    user = cursor.fetchone()
+
+    if user:
+        new_status = not bool(user[0])
+        cursor.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_status, user_id))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'new_status': new_status})
+
+    conn.close()
+    return jsonify({'success': False, 'message': 'User not found'}), 404
+
+# Helper functions for admin panel
+def calculate_admin_stats():
+    """Calculate statistics for admin dashboard"""
+    conn = user_manager.get_db_connection()
+    cursor = conn.cursor()
+
+    # Total users
+    cursor.execute('SELECT COUNT(*) FROM users')
+    total_users = cursor.fetchone()[0]
+
+    # New users this week
+    week_ago = (datetime.now() - timedelta(days=7)).isoformat()
+    cursor.execute('SELECT COUNT(*) FROM users WHERE created_at > ?', (week_ago,))
+    new_users_week = cursor.fetchone()[0]
+
+    # Reports today
+    today = datetime.now().date().isoformat()
+    cursor.execute('SELECT COUNT(*) FROM report_history WHERE DATE(generated_at) = ?', (today,))
+    reports_today = cursor.fetchone()[0]
+
+    # Total reports
+    cursor.execute('SELECT COUNT(*) FROM report_history')
+    total_reports = cursor.fetchone()[0]
+
+    # API calls today
+    cursor.execute('SELECT COUNT(*), AVG(response_time_ms) FROM api_usage WHERE DATE(timestamp) = ?', (today,))
+    api_stats = cursor.fetchone()
+
+    conn.close()
+
+    return {
+        'total_users': total_users,
+        'new_users_week': new_users_week,
+        'reports_today': reports_today,
+        'total_reports': total_reports,
+        'api_calls_today': api_stats[0] or 0,
+        'avg_response_time': round(api_stats[1] or 0),
+        'active_sessions': len(app.session_interface.open_sessions) if hasattr(app.session_interface, 'open_sessions') else 0,
+        'peak_sessions': 0  # Would need to track this
+    }
+
+def get_recent_activity(limit=20):
+    """Get recent user activity for admin dashboard"""
+    conn = user_manager.get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT u.username, a.action, a.timestamp
+        FROM user_activity a
+        JOIN users u ON a.user_id = u.id
+        ORDER BY a.timestamp DESC
+        LIMIT ?
+    ''', (limit,))
+
+    activities = []
+    for row in cursor.fetchall():
+        timestamp = datetime.fromisoformat(row[2]) if row[2] else datetime.now()
+        activities.append({
+            'username': row[0],
+            'action': row[1],
+            'time': timestamp.strftime('%H:%M')
+        })
+
+    conn.close()
+    return activities
+
+def get_usage_chart_data():
+    """Get data for usage charts"""
+    conn = user_manager.get_db_connection()
+    cursor = conn.cursor()
+
+    # Get last 7 days of data
+    labels = []
+    reports_data = []
+    api_data = []
+
+    for i in range(6, -1, -1):
+        date = (datetime.now() - timedelta(days=i)).date()
+        labels.append(date.strftime('%m/%d'))
+
+        # Reports count
+        cursor.execute('SELECT COUNT(*) FROM report_history WHERE DATE(generated_at) = ?', (date.isoformat(),))
+        reports_data.append(cursor.fetchone()[0])
+
+        # API calls count
+        cursor.execute('SELECT COUNT(*) FROM api_usage WHERE DATE(timestamp) = ?', (date.isoformat(),))
+        api_data.append(cursor.fetchone()[0])
+
+    conn.close()
+    return labels, reports_data, api_data
+
+# Add helper method to UserManager
+def get_db_connection(self):
+    """Get database connection (helper for admin functions)"""
+    import sqlite3
+    return sqlite3.connect(self.db_path)
+
+# Monkey patch the method to UserManager
+user_manager.get_db_connection = lambda: get_db_connection(user_manager)
 
 if __name__ == '__main__':
     # Start the scheduler when the app starts
