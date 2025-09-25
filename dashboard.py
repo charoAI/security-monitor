@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash, send_from_directory
 import feedparser
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
@@ -258,6 +258,11 @@ def fetch_articles(limit=30):  # Increased limit to 30 articles per source
 
     print(f"Total articles collected: {len(all_articles)}")
     return all_articles
+
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    """Serve static files from static directory"""
+    return send_from_directory('static', filename)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
